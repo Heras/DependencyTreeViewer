@@ -10,12 +10,12 @@
     public static class DependencyTreeViewerExtensions
     {
         [Conditional("DEBUG")]
-        public static void GenerateDependencyGraphFor(this IKernel kernel, System.Type contract, int depth = 0)
+        public static void GenerateDependencyGraphFor<T>(this IKernel kernel, int depth = 0)
         {
             typeof(ResolutionExtensions)
-                .DebugWrite(t => Environment.NewLine + depth.Tab() + contract.Name)
+                .DebugWrite(t => Environment.NewLine + depth.Tab() + typeof(T).Name)
                 .GetMethod("TryGet", new[] { typeof(IResolutionRoot), typeof(IParameter[]) })
-                .MakeGenericMethod(contract)
+                .MakeGenericMethod(typeof(T))
                 .Invoke(null, new object[] { kernel, new IParameter[] { } })
                 ?
                 .GetType()
@@ -24,14 +24,18 @@
                 .Select(c => c.GetParameters())
                 .OrderByDescending(c => c.Count())
                 .First()
-                .DebugWrite(c => c.Select(p => p.ParameterType.Name)
+                .DebugWrite(c => c
+                    .Select(p => p.ParameterType.Name)
                     .DefaultIfEmpty("")
                     .Aggregate((a, b) => a + ", " + b)
                     .Wrap("(", ")"))
                 .ToList()
-                .ForEach(p => kernel.GenerateDependencyGraphFor(p.ParameterType, depth + 1));
+                .ForEach(p =>
+                    typeof(DependencyTreeViewerExtensions)
+                        .GetMethod("GenerateDependencyGraphFor", new[] { typeof(IKernel), typeof(int) })
+                        .MakeGenericMethod(p.ParameterType)
+                        .Invoke(null, new object[] { kernel, depth + 1 }));
         }
-
         public static string Wrap(this string s, string before, string after) => before + s + after;
 
         public static string Tab(this int repeat) => new string('\t', repeat);
